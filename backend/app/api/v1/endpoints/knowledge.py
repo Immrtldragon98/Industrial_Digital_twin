@@ -11,6 +11,9 @@ from app.services.rag_service import answer
 router=APIRouter()
 
 class AskRequest(BaseModel): question:str; equipment_id:str|None=None
+class CoachRequest(BaseModel):
+ equipment_id:str
+ focus:str='Review this equipment and teach me how to improve its reliability and service life.'
 
 @router.post('/documents')
 async def upload_document(file:UploadFile=File(...),document_type:str=Form('OTHER'),equipment_number:str|None=Form(None),db:Session=Depends(get_db)):
@@ -39,6 +42,11 @@ def ask(payload:AskRequest,db:Session=Depends(get_db)):
  if len(payload.question.strip())<3: raise HTTPException(422,'Question is too short')
  if payload.equipment_id and not db.get(Equipment,payload.equipment_id): raise HTTPException(404,'Equipment not found')
  return answer(db,payload.question.strip(),payload.equipment_id)
+
+@router.post('/coach')
+def coach(payload:CoachRequest,db:Session=Depends(get_db)):
+ if not db.get(Equipment,payload.equipment_id): raise HTTPException(404,'Equipment not found')
+ return answer(db,payload.focus.strip(),payload.equipment_id,coach=True)
 
 @router.get('/documents')
 def list_documents(db:Session=Depends(get_db)):

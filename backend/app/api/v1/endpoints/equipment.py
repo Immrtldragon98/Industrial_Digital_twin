@@ -1,13 +1,15 @@
 from fastapi import APIRouter,Depends,HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.models import Equipment,FunctionalLocation,Parameter,ConditionReading,MaintenanceEvent,Failure,ComponentChange
 from app.schemas.schemas import EquipmentOut,EquipmentCreate,ComponentChangeCreate
+from app.services.equipment_context_service import history_card,parameter_snapshot
 router=APIRouter()
 @router.get('',response_model=list[EquipmentOut])
 def list_equipment(db:Session=Depends(get_db),limit:int=200,include_parts:bool=False):
  query=db.query(Equipment)
- if not include_parts: query=query.filter(Equipment.equipment_type.notin_(['ASSEMBLY','COMPONENT','STAND','STAND_SYSTEM']))
+ if not include_parts: query=query.filter(or_(Equipment.equipment_type.is_(None),Equipment.equipment_type.notin_(['ASSEMBLY','COMPONENT','STAND','STAND_SYSTEM'])))
  return query.order_by(Equipment.name).limit(min(limit,1000)).all()
 @router.post('',response_model=EquipmentOut)
 def create_equipment(payload:EquipmentCreate,db:Session=Depends(get_db)):
@@ -42,6 +44,14 @@ def get_twin(equipment_id:str,db:Session=Depends(get_db)):
   parameters.append({'parameter_id':str(p.id),'code':p.parameter_code,'name':p.name,'unit':p.unit,'normal_min':p.normal_min,'normal_max':p.normal_max,'latest':None if not latest else {'value':latest.value,'timestamp':latest.timestamp,'quality':latest.quality}})
  def rows(query): return [{c.name:getattr(x,c.name) for c in x.__table__.columns} for x in query]
  return {'equipment':EquipmentOut.model_validate(obj),'parameters':parameters,'maintenance_events':rows(db.query(MaintenanceEvent).filter(MaintenanceEvent.equipment_id==equipment_id).order_by(MaintenanceEvent.actual_start.desc()).limit(50)),'failures':rows(db.query(Failure).filter(Failure.equipment_id==equipment_id).order_by(Failure.failure_start.desc()).limit(50)),'component_changes':rows(db.query(ComponentChange).filter(ComponentChange.equipment_id==equipment_id).order_by(ComponentChange.changed_at.desc()).limit(50))}
+@router.get('/{equipment_id}/parameters')
+def get_parameters(equipment_id:str,db:Session=Depends(get_db),history_limit:int=30):
+ if not db.get(Equipment,equipment_id): raise HTTPException(404,'Equipment not found')
+ return parameter_snapshot(db,equipment_id,history_limit)
+@router.get('/{equipment_id}/history-card')
+def get_history_card(equipment_id:str,db:Session=Depends(get_db)):
+ if not db.get(Equipment,equipment_id): raise HTTPException(404,'Equipment not found')
+ return history_card(db,equipment_id)
 @router.post('/changes')
 def create_change(payload:ComponentChangeCreate,db:Session=Depends(get_db)):
  if not db.get(Equipment,payload.equipment_id): raise HTTPException(404,'Equipment not found')

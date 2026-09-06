@@ -31,12 +31,16 @@ Every non-hierarchy sheet needs `Equipment Number` (aliases such as Equipment, E
 
 | Import | Required | Useful optional columns |
 |---|---|---|
-| Condition | Equipment Number, Timestamp, Value | Parameter Code, Parameter Name, Unit |
+| Condition | Equipment Number, Timestamp, Value | Parameter Code, Parameter Name, Unit, Quality, Normal/Warning/Critical Min/Max |
 | Maintenance | Equipment Number | Order Number, Description, Actual Start, Actual End, Downtime Hours |
 | Failure | Equipment Number | Notification Number, Description, Cause, Start, End, Downtime Hours |
 | Changes | Equipment Number, Component | Timestamp, Reason, Order Number |
 
 Unknown equipment rows are skipped and reported; the system never guesses asset mappings.
+
+The equipment twin shows the latest value, source, quality, status, last-update age, operating limits and recent history for every parameter on the selected asset and all assemblies/components below it. The history card combines SAP maintenance orders, failure notifications, downtime and component changes in one timeline.
+
+Reliability metrics do not assume a fixed one-year window. The calculation begins from an available commissioning/installation date or dated failure history. Missing observation evidence is reported instead of producing a false KPI.
 
 ## WRM hierarchy model
 
