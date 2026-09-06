@@ -5,7 +5,10 @@ from app.models.models import Equipment,FunctionalLocation,Parameter,ConditionRe
 from app.schemas.schemas import EquipmentOut,EquipmentCreate,ComponentChangeCreate
 router=APIRouter()
 @router.get('',response_model=list[EquipmentOut])
-def list_equipment(db:Session=Depends(get_db),limit:int=200): return db.query(Equipment).order_by(Equipment.name).limit(min(limit,1000)).all()
+def list_equipment(db:Session=Depends(get_db),limit:int=200,include_parts:bool=False):
+ query=db.query(Equipment)
+ if not include_parts: query=query.filter(Equipment.equipment_type.notin_(['ASSEMBLY','COMPONENT','STAND','STAND_SYSTEM']))
+ return query.order_by(Equipment.name).limit(min(limit,1000)).all()
 @router.post('',response_model=EquipmentOut)
 def create_equipment(payload:EquipmentCreate,db:Session=Depends(get_db)):
  if db.query(Equipment).filter(Equipment.equipment_number==payload.equipment_number).first(): raise HTTPException(409,'Equipment number already exists')
@@ -18,8 +21,11 @@ def tree(db:Session=Depends(get_db)):
   n=nodes[str(f.id)]
   if f.parent_id and str(f.parent_id) in nodes: nodes[str(f.parent_id)]['children'].append(n)
   else: roots.append(n)
+ equipment_nodes={str(e.id):{'id':str(e.id),'type':(e.equipment_type or 'equipment').lower(),'code':e.equipment_number,'name':e.name,'status':e.status,'children':[]} for e in eqs}
  for e in eqs:
-  if e.functional_location_id and str(e.functional_location_id) in nodes: nodes[str(e.functional_location_id)]['children'].append({'id':str(e.id),'type':'equipment','code':e.equipment_number,'name':e.name,'status':e.status,'children':[]})
+  node=equipment_nodes[str(e.id)]
+  if e.parent_equipment_id and str(e.parent_equipment_id) in equipment_nodes: equipment_nodes[str(e.parent_equipment_id)]['children'].append(node)
+  elif e.functional_location_id and str(e.functional_location_id) in nodes: nodes[str(e.functional_location_id)]['children'].append(node)
  return roots
 @router.get('/{equipment_id}',response_model=EquipmentOut)
 def get_equipment(equipment_id:str,db:Session=Depends(get_db)):

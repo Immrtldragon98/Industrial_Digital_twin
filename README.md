@@ -38,6 +38,14 @@ Every non-hierarchy sheet needs `Equipment Number` (aliases such as Equipment, E
 
 Unknown equipment rows are skipped and reported; the system never guesses asset mappings.
 
+## WRM hierarchy model
+
+The structured `SAP Hierarchy` workbook is imported as an unlimited-depth tree:
+
+`WRM functional location → WRM line equipment → sub-equipment → assembly → component`
+
+Examples include `Finishing Mill → Gearbox 1 Assembly → Input Shaft → Bearing` and `Finishing Mill → Stand Assembly → Roll Assembly → Sleeve`. Every installed object needs a unique Object ID. Reusable SAP material codes belong in BOM/component metadata and must not be used as the physical asset identity. The current pilot intentionally imports only the CH2/WRM branch; other CH2 areas are ignored.
+
 ## AI direction
 
 Recommended laptop stack: PostgreSQL + pgvector, multilingual `embeddinggemma` served by Ollama, and Qwen served by Ollama. This avoids installing PyTorch/CUDA libraries inside the API container. A production server can later use BGE-M3 behind the same embedding interface. RAG answers must cite source, date and equipment scope and state when plant evidence is insufficient.
