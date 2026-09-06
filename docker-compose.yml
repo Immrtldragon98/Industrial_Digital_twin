@@ -27,6 +27,10 @@ services:
       OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen3:1.7b}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-embeddinggemma}
       UPLOAD_DIR: /data/documents
+      AUTH_SECRET: ${AUTH_SECRET:-development-only-change-this-secret}
+      AUTH_TOKEN_HOURS: ${AUTH_TOKEN_HOURS:-12}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-now}
     ports: ["8000:8000"]
     volumes:
       - ./backend:/app

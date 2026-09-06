@@ -1,11 +1,11 @@
 export interface Equipment {
   id:string; equipment_number?:string; functional_location_id?:string;
   parent_equipment_id?:string; name:string; equipment_type?:string;
-  criticality?:string; status:string;
+  criticality?:string; status:string; wrm_line?:string;
 }
 export interface TreeNode {
   id:string; type:string; code?:string; name:string; level?:number;
-  status?:string; children:TreeNode[];
+  status?:string; wrm_line?:string; children:TreeNode[];
 }
 export interface Summary {
   equipment_count:number; average_availability:number|null;
@@ -48,3 +48,5 @@ export interface RagSource {
 export interface RagAnswer {
   answer:string; sources:RagSource[]; retrieval_mode:string; model_status:string; model?:string;
 }
+export type Role='viewer'|'engineer'|'admin';
+export interface User {id:string;username:string;role:Role;is_active:boolean}

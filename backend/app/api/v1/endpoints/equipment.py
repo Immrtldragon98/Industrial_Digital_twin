@@ -1,29 +1,43 @@
+import re
 from fastapi import APIRouter,Depends,HTTPException
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models.models import Equipment,FunctionalLocation,Parameter,ConditionReading,MaintenanceEvent,Failure,ComponentChange
+from app.models.models import Equipment,FunctionalLocation,Parameter,ConditionReading,MaintenanceEvent,Failure,ComponentChange,User
 from app.schemas.schemas import EquipmentOut,EquipmentCreate,ComponentChangeCreate
+from app.services.auth_service import require_roles
 from app.services.equipment_context_service import history_card,parameter_snapshot
 router=APIRouter()
+def line_for(equipment,by_id):
+ current=equipment
+ while current:
+  metadata=current.metadata_json or {}
+  searchable=' '.join([current.name or '',current.equipment_number or '',metadata.get('source_object_id',''),*metadata.get('aliases',[])])
+  match=re.search(r'(?:WRM|WIRE ROD MILL)[\s_-]*0?([123])\b',searchable,re.IGNORECASE)
+  if match: return f'WRM{match.group(1)}'
+  current=by_id.get(current.parent_equipment_id)
+ return None
 @router.get('',response_model=list[EquipmentOut])
 def list_equipment(db:Session=Depends(get_db),limit:int=200,include_parts:bool=False):
  query=db.query(Equipment)
  if not include_parts: query=query.filter(or_(Equipment.equipment_type.is_(None),Equipment.equipment_type.notin_(['ASSEMBLY','COMPONENT','STAND','STAND_SYSTEM'])))
- return query.order_by(Equipment.name).limit(min(limit,1000)).all()
+ items=query.order_by(Equipment.name).limit(min(limit,1000)).all()
+ by_id={item.id:item for item in db.query(Equipment).all()}
+ return [{**EquipmentOut.model_validate(item).model_dump(),'wrm_line':line_for(item,by_id)} for item in items]
 @router.post('',response_model=EquipmentOut)
-def create_equipment(payload:EquipmentCreate,db:Session=Depends(get_db)):
+def create_equipment(payload:EquipmentCreate,db:Session=Depends(get_db),_:User=Depends(require_roles('admin'))):
  if db.query(Equipment).filter(Equipment.equipment_number==payload.equipment_number).first(): raise HTTPException(409,'Equipment number already exists')
  obj=Equipment(**payload.model_dump()); db.add(obj); db.commit(); db.refresh(obj); return obj
 @router.get('/tree')
 def tree(db:Session=Depends(get_db)):
  fls=db.query(FunctionalLocation).order_by(FunctionalLocation.level,FunctionalLocation.code).all(); eqs=db.query(Equipment).order_by(Equipment.name).all()
+ by_id={e.id:e for e in eqs}
  nodes={str(f.id):{'id':str(f.id),'type':'functional_location','code':f.code,'name':f.name,'level':f.level,'children':[]} for f in fls}; roots=[]
  for f in fls:
   n=nodes[str(f.id)]
   if f.parent_id and str(f.parent_id) in nodes: nodes[str(f.parent_id)]['children'].append(n)
   else: roots.append(n)
- equipment_nodes={str(e.id):{'id':str(e.id),'type':(e.equipment_type or 'equipment').lower(),'code':e.equipment_number,'name':e.name,'status':e.status,'children':[]} for e in eqs}
+ equipment_nodes={str(e.id):{'id':str(e.id),'type':(e.equipment_type or 'equipment').lower(),'code':e.equipment_number,'name':e.name,'status':e.status,'wrm_line':line_for(e,by_id),'children':[]} for e in eqs}
  for e in eqs:
   node=equipment_nodes[str(e.id)]
   if e.parent_equipment_id and str(e.parent_equipment_id) in equipment_nodes: equipment_nodes[str(e.parent_equipment_id)]['children'].append(node)
@@ -53,6 +67,6 @@ def get_history_card(equipment_id:str,db:Session=Depends(get_db)):
  if not db.get(Equipment,equipment_id): raise HTTPException(404,'Equipment not found')
  return history_card(db,equipment_id)
 @router.post('/changes')
-def create_change(payload:ComponentChangeCreate,db:Session=Depends(get_db)):
+def create_change(payload:ComponentChangeCreate,db:Session=Depends(get_db),_:User=Depends(require_roles('engineer','admin'))):
  if not db.get(Equipment,payload.equipment_id): raise HTTPException(404,'Equipment not found')
  obj=ComponentChange(**payload.model_dump(),source='manual'); db.add(obj); db.commit(); db.refresh(obj); return {'id':obj.id,'status':'created'}

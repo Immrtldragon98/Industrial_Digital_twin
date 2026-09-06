@@ -3,7 +3,7 @@ from uuid import UUID
 from pydantic import BaseModel,ConfigDict
 class EquipmentOut(BaseModel):
  model_config=ConfigDict(from_attributes=True)
- id:UUID; equipment_number:str|None=None; functional_location_id:UUID|None=None; parent_equipment_id:UUID|None=None; name:str; equipment_type:str|None=None; criticality:str|None=None; status:str
+ id:UUID; equipment_number:str|None=None; functional_location_id:UUID|None=None; parent_equipment_id:UUID|None=None; name:str; equipment_type:str|None=None; criticality:str|None=None; status:str; wrm_line:str|None=None
 class ConditionReadingCreate(BaseModel):
  parameter_id:UUID; timestamp:datetime; value:float|None=None; quality:str='GOOD'; source:str|None=None
 class EquipmentCreate(BaseModel):

@@ -6,6 +6,14 @@ Equipment digital-twin foundation for maintenance engineers and planners. It map
 
 Install Docker Desktop, copy `.env.example` to `.env`, then run `docker compose up --build`. Open `http://localhost:3000`; API docs are at `http://localhost:8000/docs`.
 
+Before the first authenticated startup, replace `AUTH_SECRET` and `ADMIN_PASSWORD` in `.env`. The first Admin account is created from those values. There is no public registration; Admin creates Viewer and Engineer accounts from the Accounts tab.
+
+| Role | Access |
+|---|---|
+| Viewer | Read dashboards, parameters, history cards and reliability answers |
+| Engineer | Viewer access plus condition/history/document imports |
+| Admin | Full access including hierarchy imports and account creation |
+
 AI starts disabled so the core application can be verified independently. After Ollama has `qwen3:1.7b` and `embeddinggemma`, set `AI_ENABLED=true` and restart the backend.
 
 The backend intentionally parses DOCX files using Python's standard library. It does not install `python-docx`/`lxml`, avoiding a large, unnecessary dependency that commonly timed out during Docker builds.

@@ -5,7 +5,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.core.config import UPLOAD_DIR
 from app.core.database import get_db
-from app.models.models import Document,DocumentChunk,Equipment
+from app.models.models import Document,DocumentChunk,Equipment,User
+from app.services.auth_service import require_roles
 from app.services.knowledge_service import extract_text,chunks,embed,sha256
 from app.services.rag_service import answer
 router=APIRouter()
@@ -16,7 +17,7 @@ class CoachRequest(BaseModel):
  focus:str='Review this equipment and teach me how to improve its reliability and service life.'
 
 @router.post('/documents')
-async def upload_document(file:UploadFile=File(...),document_type:str=Form('OTHER'),equipment_number:str|None=Form(None),db:Session=Depends(get_db)):
+async def upload_document(file:UploadFile=File(...),document_type:str=Form('OTHER'),equipment_number:str|None=Form(None),db:Session=Depends(get_db),_:User=Depends(require_roles('engineer','admin'))):
  eq=None
  if equipment_number:
   eq=db.query(Equipment).filter(Equipment.equipment_number==equipment_number.strip()).first()

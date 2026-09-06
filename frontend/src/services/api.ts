@@ -1,7 +1,19 @@
 import axios from 'axios';
-import type {Equipment,HistoryCard,ParameterSnapshot,RagAnswer,Summary,TreeNode} from '../types/domain';
+import type {Equipment,HistoryCard,ParameterSnapshot,RagAnswer,Role,Summary,TreeNode,User} from '../types/domain';
 
 export const api=axios.create({baseURL:import.meta.env.VITE_API_URL||'http://localhost:8000/api/v1'});
+const TOKEN_KEY='reliability_twin_token';
+api.interceptors.request.use(config=>{
+  const token=localStorage.getItem(TOKEN_KEY);
+  if(token)config.headers.Authorization=`Bearer ${token}`;
+  return config;
+});
+export function setToken(token:string|null){if(token)localStorage.setItem(TOKEN_KEY,token);else localStorage.removeItem(TOKEN_KEY)}
+export function hasToken(){return Boolean(localStorage.getItem(TOKEN_KEY))}
+export async function login(username:string,password:string){return (await api.post<{access_token:string;user:User}>('/auth/login',{username,password})).data}
+export async function getMe(){return (await api.get<User>('/auth/me')).data}
+export async function getUsers(){return (await api.get<User[]>('/auth/users')).data}
+export async function createUser(username:string,password:string,role:Role){return (await api.post<User>('/auth/users',{username,password,role})).data}
 export async function getSummary(){return (await api.get<Summary>('/reliability/summary')).data}
 export async function getEquipment(){return (await api.get<Equipment[]>('/equipment')).data}
 export async function getTree(){return (await api.get<TreeNode[]>('/equipment/tree')).data}
