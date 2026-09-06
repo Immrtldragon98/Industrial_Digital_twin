@@ -1,0 +1,56 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: digital-twin-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-digital_twin}
+      POSTGRES_USER: ${POSTGRES_USER:-digital_twin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-digital_twin_dev}
+    ports: ["5432:5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-digital_twin} -d ${POSTGRES_DB:-digital_twin}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ./backend
+    container_name: digital-twin-api
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-digital_twin}:${POSTGRES_PASSWORD:-digital_twin_dev}@db:5432/${POSTGRES_DB:-digital_twin}
+      CORS_ORIGINS: http://localhost:3000
+      AI_ENABLED: ${AI_ENABLED:-false}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen3:1.7b}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-embeddinggemma}
+      UPLOAD_DIR: /data/documents
+    ports: ["8000:8000"]
+    volumes:
+      - ./backend:/app
+      - ./data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build: ./frontend
+    container_name: digital-twin-web
+    environment:
+      VITE_API_URL: http://localhost:8000/api/v1
+    ports: ["3000:3000"]
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

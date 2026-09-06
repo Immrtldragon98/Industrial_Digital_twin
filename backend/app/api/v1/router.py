@@ -1,0 +1,3 @@
+from fastapi import APIRouter
+from app.api.v1.endpoints import health,equipment,reliability,condition,imports,knowledge
+api_router=APIRouter(); api_router.include_router(health.router,prefix='/health',tags=['Health']); api_router.include_router(equipment.router,prefix='/equipment',tags=['Equipment']); api_router.include_router(reliability.router,prefix='/reliability',tags=['Reliability']); api_router.include_router(condition.router,prefix='/condition',tags=['Condition']); api_router.include_router(imports.router,prefix='/imports',tags=['Imports']); api_router.include_router(knowledge.router,prefix='/knowledge',tags=['Knowledge & RAG'])

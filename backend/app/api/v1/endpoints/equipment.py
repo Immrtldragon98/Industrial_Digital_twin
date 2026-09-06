@@ -1,0 +1,42 @@
+from fastapi import APIRouter,Depends,HTTPException
+from sqlalchemy.orm import Session
+from app.core.database import get_db
+from app.models.models import Equipment,FunctionalLocation,Parameter,ConditionReading,MaintenanceEvent,Failure,ComponentChange
+from app.schemas.schemas import EquipmentOut,EquipmentCreate,ComponentChangeCreate
+router=APIRouter()
+@router.get('',response_model=list[EquipmentOut])
+def list_equipment(db:Session=Depends(get_db),limit:int=200): return db.query(Equipment).order_by(Equipment.name).limit(min(limit,1000)).all()
+@router.post('',response_model=EquipmentOut)
+def create_equipment(payload:EquipmentCreate,db:Session=Depends(get_db)):
+ if db.query(Equipment).filter(Equipment.equipment_number==payload.equipment_number).first(): raise HTTPException(409,'Equipment number already exists')
+ obj=Equipment(**payload.model_dump()); db.add(obj); db.commit(); db.refresh(obj); return obj
+@router.get('/tree')
+def tree(db:Session=Depends(get_db)):
+ fls=db.query(FunctionalLocation).order_by(FunctionalLocation.level,FunctionalLocation.code).all(); eqs=db.query(Equipment).order_by(Equipment.name).all()
+ nodes={str(f.id):{'id':str(f.id),'type':'functional_location','code':f.code,'name':f.name,'level':f.level,'children':[]} for f in fls}; roots=[]
+ for f in fls:
+  n=nodes[str(f.id)]
+  if f.parent_id and str(f.parent_id) in nodes: nodes[str(f.parent_id)]['children'].append(n)
+  else: roots.append(n)
+ for e in eqs:
+  if e.functional_location_id and str(e.functional_location_id) in nodes: nodes[str(e.functional_location_id)]['children'].append({'id':str(e.id),'type':'equipment','code':e.equipment_number,'name':e.name,'status':e.status,'children':[]})
+ return roots
+@router.get('/{equipment_id}',response_model=EquipmentOut)
+def get_equipment(equipment_id:str,db:Session=Depends(get_db)):
+ obj=db.get(Equipment,equipment_id)
+ if not obj: raise HTTPException(404,'Equipment not found')
+ return obj
+@router.get('/{equipment_id}/twin')
+def get_twin(equipment_id:str,db:Session=Depends(get_db)):
+ obj=db.get(Equipment,equipment_id)
+ if not obj: raise HTTPException(404,'Equipment not found')
+ parameters=[]
+ for p in db.query(Parameter).filter(Parameter.equipment_id==equipment_id).all():
+  latest=db.query(ConditionReading).filter(ConditionReading.parameter_id==p.id).order_by(ConditionReading.timestamp.desc()).first()
+  parameters.append({'parameter_id':str(p.id),'code':p.parameter_code,'name':p.name,'unit':p.unit,'normal_min':p.normal_min,'normal_max':p.normal_max,'latest':None if not latest else {'value':latest.value,'timestamp':latest.timestamp,'quality':latest.quality}})
+ def rows(query): return [{c.name:getattr(x,c.name) for c in x.__table__.columns} for x in query]
+ return {'equipment':EquipmentOut.model_validate(obj),'parameters':parameters,'maintenance_events':rows(db.query(MaintenanceEvent).filter(MaintenanceEvent.equipment_id==equipment_id).order_by(MaintenanceEvent.actual_start.desc()).limit(50)),'failures':rows(db.query(Failure).filter(Failure.equipment_id==equipment_id).order_by(Failure.failure_start.desc()).limit(50)),'component_changes':rows(db.query(ComponentChange).filter(ComponentChange.equipment_id==equipment_id).order_by(ComponentChange.changed_at.desc()).limit(50))}
+@router.post('/changes')
+def create_change(payload:ComponentChangeCreate,db:Session=Depends(get_db)):
+ if not db.get(Equipment,payload.equipment_id): raise HTTPException(404,'Equipment not found')
+ obj=ComponentChange(**payload.model_dump(),source='manual'); db.add(obj); db.commit(); db.refresh(obj); return {'id':obj.id,'status':'created'}
